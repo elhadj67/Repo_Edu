@@ -9,3 +9,6 @@ out/
 
 # Environment
 .env
+"node_modules/" 
+".next/" 
+".env" 
