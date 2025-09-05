@@ -1,0 +1,138 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STUDENT)
+  firstName    String
+  lastName     String
+  timeZone     String    @default("UTC")
+  // relations
+  teacherProfile TeacherProfile?
+  bookings       Booking[]
+  payments       Payment[]
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model TeacherProfile {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  bio         String?
+  pricePerSlot Int     // en cents
+  slotDuration Int     // minutes: ex. 30, 45, 60
+  // dispo récurrente (optionnel simplifié)
+  weeklyAvailability Json // ex: {"mon":["09:00-12:00"], "wed":["14:00-18:00"]}
+  user        User    @relation(fields: [userId], references: [id])
+  sessions    CourseSession[]
+}
+
+model CourseSession {
+  id          String   @id @default(cuid())
+  teacherId   String
+  start       DateTime
+  end         DateTime
+  status      SessionStatus @default(OPEN)
+  meetingUrl  String?
+  meetingPass String?
+  // Si session de groupe à l’avenir: capacity, etc.
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id])
+  booking     Booking?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum SessionStatus {
+  OPEN
+  RESERVED
+  COMPLETED
+  CANCELED
+}
+
+model Booking {
+  id           String   @id @default(cuid())
+  sessionId    String   @unique
+  studentId    String
+  status       BookingStatus @default(PENDING_PAYMENT)
+  paymentId    String?
+  // si réglé avec un pack de crédits
+  redeemedFromPackageId String?
+
+  session      CourseSession @relation(fields: [sessionId], references: [id])
+  student      User          @relation(fields: [studentId], references: [id])
+  payment      Payment?      @relation(fields: [paymentId], references: [id])
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELED
+  COMPLETED
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  userId        String
+  type          PaymentType
+  amount        Int      // cents
+  currency      String   @default("EUR")
+  stripePI      String?  // payment_intent id
+  stripeSub     String?  // subscription id si abo
+  status        PaymentStatus @default(REQUIRES_PAYMENT_METHOD)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  // pour rattacher aux réservations
+  booking       Booking[]
+  // pour packs
+  package       PackagePurchase?
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+enum PaymentType {
+  ONE_OFF_SLOT
+  PACKAGE
+  SUBSCRIPTION
+}
+
+enum PaymentStatus {
+  REQUIRES_PAYMENT_METHOD
+  REQUIRES_CONFIRMATION
+  SUCCEEDED
+  CANCELED
+  REFUNDED
+}
+
+model PackageProduct {
+  id          String  @id @default(cuid())
+  name        String
+  slots       Int     // nb de cours inclus
+  price       Int     // cents
+  currency    String  @default("EUR")
+  active      Boolean @default(true)
+}
+
+model PackagePurchase {
+  id             String  @id @default(cuid())
+  userId         String
+  productId      String
+  remainingSlots Int
+  paymentId      String  @unique
+
+  user     User            @relation(fields: [userId], references: [id])
+  product  PackageProduct  @relation(fields: [productId], references: [id])
+  payment  Payment         @relation(fields: [paymentId], references: [id])
+}
