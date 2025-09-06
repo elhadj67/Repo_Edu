@@ -1,0 +1,40 @@
+model CourseSession {
+  id        Int       @id @default(autoincrement())
+  start     DateTime
+  end       DateTime
+  teacherId Int
+  teacher   Teacher   @relation(fields: [teacherId], references: [id])
+  bookings  Booking[]
+}
+
+model Booking {
+  id         Int           @id @default(autoincrement())
+  sessionId  Int
+  session    CourseSession @relation(fields: [sessionId], references: [id])
+  studentId  Int
+  student    Student       @relation(fields: [studentId], references: [id])
+  status     String
+}
+
+model User {
+  id                 Int               @id @default(autoincrement())
+  email              String            @unique
+  packagePurchases   PackagePurchase[] // ← champ ajouté
+}
+
+model PackageProduct {
+  id                 Int               @id @default(autoincrement())
+  name               String
+  packagePurchases   PackagePurchase[] // ← champ ajouté
+}
+
+model PackagePurchase {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  productId Int
+  paymentId Int
+
+  user      User             @relation(fields: [userId], references: [id])
+  product   PackageProduct   @relation(fields: [productId], references: [id])
+  payment   Payment          @relation(fields: [paymentId], references: [id])
+}

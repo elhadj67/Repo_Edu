@@ -1,76 +1,62 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+// src/teachers/teachers.service.ts
+import { Injectable } from '@nestjs/common';
 import { Teacher } from './entities/teacher.entity';
-import { UpdateTeacherDto } from './dto/update-teacher.dto';
-import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 
 @Injectable()
 export class TeachersService {
-  private teachers: Teacher[] = [
-    {
-      id: '1',
-      firstName: 'Alice',
-      lastName: 'Dupont',
-      email: 'alice@test.com',
-      weeklyAvailability: {
-        monday: ['09:00-11:00', '14:00-16:00'],
-        wednesday: ['10:00-12:00'],
-      },
-      slotDuration: 60, // minutes
-      pricePerSlot: 30,
-    },
-  ];
+  private teachers: Teacher[] = [];
 
+  // Ajouter un enseignant
+  addTeacher(teacher: Teacher) {
+    this.teachers.push(teacher);
+  }
+
+  // Obtenir tous les enseignants
   findAll(): Teacher[] {
     return this.teachers;
   }
 
-  findOne(id: string): Teacher {
-    const teacher = this.teachers.find(t => t.id === id);
-    if (!teacher) throw new NotFoundException('Teacher not found');
+  // Obtenir un enseignant par ID
+  findOne(id: string): Teacher | undefined {
+    return this.teachers.find(t => t.id === id);
+  }
+
+  // Mettre à jour un enseignant
+  update(id: string, updated: Partial<Teacher>): Teacher | undefined {
+    const teacher = this.findOne(id);
+    if (!teacher) return undefined;
+    Object.assign(teacher, updated);
     return teacher;
   }
 
-  update(id: string, dto: UpdateTeacherDto): Teacher {
-    const teacher = this.findOne(id);
-    Object.assign(teacher, dto);
-    return teacher;
+  // Générer des créneaux disponibles pour un jour donné
+  getAvailableSlots(teacherId: string, dayName: string) {
+    const teacher = this.findOne(teacherId);
+    if (!teacher || !teacher.weeklyAvailability || !teacher.slotDuration) return [];
+
+    const slots = teacher.weeklyAvailability[dayName] || [];
+    return slots.map(slot => {
+      const slotStart = new Date(slot.start);
+      const slotEnd = new Date(slotStart.getTime() + teacher.slotDuration! * 60000);
+      return { start: slotStart, end: slotEnd };
+    });
   }
 
-  generateSessions(id: string, dto: GenerateSessionsDto): string[] {
+  // Générer des sessions sur plusieurs jours (exemple)
+  generateSessions(id: string, dto: { startDate: string; endDate: string }) {
     const teacher = this.findOne(id);
-    if (!teacher.weeklyAvailability || !teacher.slotDuration) {
-      return [];
+    if (!teacher) return [];
+
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    const sessions = [];
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+      const slots = this.getAvailableSlots(id, dayName);
+      sessions.push(...slots.map(slot => ({ teacherId: id, date: d.toISOString(), ...slot })));
     }
 
-    const slots: string[] = [];
-    const startDate = new Date(dto.startDate);
-    const endDate = new Date(dto.endDate);
-
-    // Parcours chaque jour de la fenêtre
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      const availabilities = teacher.weeklyAvailability[dayName];
-      if (availabilities) {
-        for (const range of availabilities) {
-          const [startTime, endTime] = range.split('-');
-          let slotStart = new Date(d);
-          const [startHour, startMinute] = startTime.split(':').map(Number);
-          slotStart.setHours(startHour, startMinute, 0, 0);
-
-          const [endHour, endMinute] = endTime.split(':').map(Number);
-          const slotEndLimit = new Date(d);
-          slotEndLimit.setHours(endHour, endMinute, 0, 0);
-
-          while (slotStart < slotEndLimit) {
-            const slotEnd = new Date(slotStart.getTime() + teacher.slotDuration * 60000);
-            if (slotEnd > slotEndLimit) break;
-            slots.push(`${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
-            slotStart = slotEnd;
-          }
-        }
-      }
-    }
-
-    return slots;
+    return sessions;
   }
 }
