@@ -4,19 +4,19 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Installer pnpm
-RUN npm install -g pnpm
+# Installer pnpm et typescript globalement pour builder l'API
+RUN npm install -g pnpm typescript
 
 # Copier les fichiers du workspace pour tout le monorepo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Installer toutes les dépendances du monorepo
-RUN pnpm install --frozen-lockfile
+# Installer toutes les dépendances (incluant devDependencies pour tsc)
+RUN pnpm install --frozen-lockfile --prod=false
 
 # Copier tout le code source
 COPY apps ./apps
 
-# Builder l'API
+# Builder l'API (NestJS / Node)
 WORKDIR /app/apps/api
 RUN pnpm build
 
@@ -30,7 +30,7 @@ RUN pnpm build
 FROM node:20-alpine
 WORKDIR /app
 
-# Copier les dépendances installées
+# Copier uniquement ce qui est nécessaire pour la prod
 COPY --from=builder /app/node_modules ./node_modules
 
 # Copier le build du frontend
@@ -44,9 +44,7 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
 # Définir l'environnement
 ENV NODE_ENV=production
-EXPOSE 3000
-EXPOSE 4000
+EXPOSE 3000 4000
 
-# Démarrer les deux apps (API + Web) en parallèle
-# Utilise sh pour lancer les deux processus
+# Démarrer les deux apps en parallèle (API + Web)
 CMD ["sh", "-c", "cd apps/api && pnpm start & cd ../web && pnpm start"]
