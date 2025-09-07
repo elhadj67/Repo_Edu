@@ -1,57 +1,48 @@
-# ===========================
-# Stage 1: Builder
-# ===========================
+# Étape 1 : Builder
 FROM node:20-alpine AS builder
 
+# Définir le répertoire de travail
 WORKDIR /app
 
-# Installer pnpm et TypeScript globalement
+# Installer pnpm et typescript globalement
 RUN npm install -g pnpm typescript
 
-# Copier les fichiers de dépendances
+# Copier les fichiers de configuration pnpm
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Installer toutes les dépendances
+# Installer les dépendances
 RUN pnpm install
 
-# Copier tout le code source
+# Copier tout le code
 COPY . .
 
-# Générer Prisma Client
+# Définir la variable d'environnement DB_URL pour Prisma
+ARG DB_URL
+ENV DB_URL=$DB_URL
+
+# Générer le client Prisma
 RUN npx prisma generate
 
-# Builder API NestJS
+# Builder l'API NestJS
 WORKDIR /app/apps/api
 RUN pnpm build
 
-# Builder Frontend Next.js
-WORKDIR /app/apps/web
-RUN pnpm build
-
-# ===========================
-# Stage 2: Production
-# ===========================
+# Étape 2 : Production
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copier tout ce qui est nécessaire depuis le builder
+# Copier uniquement ce qui est nécessaire pour la prod
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/web/.next ./apps/web/.next
-COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
-# Définir les variables d'environnement
-ENV NODE_ENV=production
-ENV PORT=3000
+# Définir la variable d'environnement pour la base
+ARG DB_URL
+ENV DB_URL=$DB_URL
 
-# Installer un serveur pour lier Next.js et API sur le même service
-# Ici, on va utiliser `concurrently` pour démarrer les deux serveurs
-RUN pnpm add -g concurrently
+# Exposer le port de l'API
+EXPOSE 3001
 
-# Exposer les ports nécessaires
-EXPOSE 3000 3001
-
-# CMD pour lancer Next.js et NestJS simultanément
-CMD ["concurrently", "--kill-others-on-fail", "\"node apps/api/dist/main.js\"", "\"next start apps/web -p 3000\""]
+# Lancer l'application
+CMD ["node", "apps/api/dist/main.js"]
