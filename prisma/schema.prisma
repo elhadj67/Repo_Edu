@@ -1,10 +1,14 @@
 model CourseSession {
-  id        Int       @id @default(autoincrement())
-  start     DateTime
-  end       DateTime
-  teacherId Int
-  teacher   Teacher   @relation(fields: [teacherId], references: [id])
-  bookings  Booking[]
+  id         Int       @id @default(autoincrement())
+  start      DateTime
+  end        DateTime
+  teacherId  Int
+  teacher    Teacher   @relation(fields: [teacherId], references: [id])
+  bookings   Booking[]
+
+  // Champs utilisés dans ton code mais absents avant
+  meetingUrl String?   // lien vers le meeting (facultatif)
+  status     String?   // état de la session (planned, done, canceled…)
 }
 
 model Booking {
@@ -17,26 +21,45 @@ model Booking {
 }
 
 model User {
-  id                 Int               @id @default(autoincrement())
-  email              String            @unique
-  packagePurchases   PackagePurchase[] // ← champ ajouté
+  id               Int               @id @default(autoincrement())
+  email            String            @unique
+  packagePurchases PackagePurchase[]
 }
 
 model PackageProduct {
-  id                 Int               @id @default(autoincrement())
-  name               String
-  packagePurchases   PackagePurchase[] // ← champ ajouté
+  id               Int               @id @default(autoincrement())
+  name             String
+  packagePurchases PackagePurchase[]
 }
 
 model PackagePurchase {
-  id        Int              @id @default(autoincrement())
+  id        Int            @id @default(autoincrement())
   userId    Int
   productId Int
   paymentId Int
 
-  user      User             @relation(fields: [userId], references: [id])
-  product   PackageProduct   @relation(fields: [productId], references: [id])
-  payment   Payment          @relation(fields: [paymentId], references: [id])
+  user      User           @relation(fields: [userId], references: [id])
+  product   PackageProduct @relation(fields: [productId], references: [id])
+  payment   Payment        @relation(fields: [paymentId], references: [id])
+}
+
+model Teacher {
+  id       Int             @id @default(autoincrement())
+  name     String
+  sessions CourseSession[]
+}
+
+model Student {
+  id       Int        @id @default(autoincrement())
+  name     String
+  bookings Booking[]
+}
+
+model Payment {
+  id         Int              @id @default(autoincrement())
+  amount     Float
+  createdAt  DateTime         @default(now())
+  purchases  PackagePurchase[]
 }
 
 datasource db {
@@ -46,23 +69,4 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
-}
-
-model Teacher {
-  id             Int             @id @default(autoincrement())
-  name           String
-  courseSessions CourseSession[]
-}
-
-model Student {
-  id       Int       @id @default(autoincrement())
-  name     String
-  bookings Booking[]
-}
-
-model Payment {
-  id      Int      @id @default(autoincrement())
-  amount  Float
-  date    DateTime @default(now())
-  purchase PackagePurchase[]
 }
