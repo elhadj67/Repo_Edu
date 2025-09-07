@@ -14,10 +14,10 @@ export class SessionsService {
   }
 
   // Créer une session
-  async createSession(teacherId: number, start: Date, end: Date) {
+  async createSession(teacherId: number | string, start: Date, end: Date) {
     return this.prisma.courseSession.create({
       data: {
-        teacherId,
+        teacherId: teacherId.toString(), // conversion en string
         start,
         end,
         status: 'OPEN',
@@ -26,8 +26,10 @@ export class SessionsService {
   }
 
   // Réserver une session
-  async bookSession(sessionId: number, studentId: number) {
-    const session = await this.prisma.courseSession.findUnique({ where: { id: sessionId } });
+  async bookSession(sessionId: number | string, studentId: number | string) {
+    const session = await this.prisma.courseSession.findUnique({
+      where: { id: sessionId.toString() }, // conversion en string
+    });
 
     if (!session || session.status !== 'OPEN') {
       throw new NotFoundException('Session not available');
@@ -36,15 +38,15 @@ export class SessionsService {
     // Créer une réservation
     const booking = await this.prisma.booking.create({
       data: {
-        sessionId,
-        studentId,
+        sessionId: sessionId.toString(), // conversion en string
+        studentId: studentId.toString(), // conversion en string
         status: 'PENDING_PAYMENT',
       },
     });
 
     // Marquer la session comme réservée
     await this.prisma.courseSession.update({
-      where: { id: sessionId },
+      where: { id: sessionId.toString() }, // conversion en string
       data: { status: 'RESERVED' },
     });
 
