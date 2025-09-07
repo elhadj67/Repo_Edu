@@ -7,7 +7,8 @@ import axios from 'axios';
 export class MeetingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generateJitsiLink(sessionId: string) {
+  // Générer un lien Jitsi pour une session
+  async generateJitsiLink(sessionId: number) {
     const meetingUrl = `https://meet.jit.si/${sessionId}-${Date.now()}`;
     await this.prisma.courseSession.update({
       where: { id: sessionId },
@@ -16,6 +17,7 @@ export class MeetingsService {
     return meetingUrl;
   }
 
+  // Envoyer l'email de confirmation à l'étudiant
   async sendConfirmationEmail(studentEmail: string, meetingUrl: string, sessionDate: Date) {
     await axios.post(
       'https://api.resend.com/emails',
@@ -32,20 +34,26 @@ export class MeetingsService {
     );
   }
 
-  async createMeetingAndNotify(sessionId: string) {
+  // Créer un meeting et notifier tous les étudiants
+  async createMeetingAndNotify(sessionId: number) {
     const session = await this.prisma.courseSession.findUnique({
       where: { id: sessionId },
-      include: { booking: { include: { student: true } } },
+      include: { bookings: { include: { student: true } } }, // ✅ bookings au lieu de booking
     });
 
-    if (!session || !session.booking) return null;
+    if (!session || !session.bookings || session.bookings.length === 0) return null;
 
     const meetingUrl = await this.generateJitsiLink(sessionId);
-    await this.sendConfirmationEmail(
-      session.booking.student.email,
-      meetingUrl,
-      session.start,
-    );
+
+    // envoyer l'email à tous les étudiants
+    for (const booking of session.bookings) {
+      await this.sendConfirmationEmail(
+        booking.student.email,
+        meetingUrl,
+        session.start,
+      );
+    }
+
     return meetingUrl;
   }
 }
