@@ -1,4 +1,3 @@
-// src/meetings/meetings.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
@@ -7,17 +6,15 @@ import axios from 'axios';
 export class MeetingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Génération du lien Jitsi
   async generateJitsiLink(sessionId: string) {
     const meetingUrl = `https://meet.jit.si/${sessionId}-${Date.now()}`;
     await this.prisma.courseSession.update({
-      where: { id: sessionId }, // string, conforme au schéma Prisma
+      where: { id: sessionId },
       data: { meetingUrl },
     });
     return meetingUrl;
   }
 
-  // Envoi de l'email de confirmation
   async sendConfirmationEmail(studentEmail: string, meetingUrl: string, sessionDate: Date) {
     if (!studentEmail) return;
 
@@ -36,12 +33,11 @@ export class MeetingsService {
     );
   }
 
-  // Création du meeting + notification
   async createMeetingAndNotify(sessionId: string) {
     const session = await this.prisma.courseSession.findUnique({
       where: { id: sessionId },
       include: {
-        booking: { // correct selon le schéma Prisma
+        booking: { // singulier selon le schéma Prisma
           include: { student: true },
         },
       },

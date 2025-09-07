@@ -9,6 +9,7 @@ export class PaymentsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  // Créer un PaymentIntent Stripe
   async createPaymentIntent(
     amount: number,
     currency = 'EUR',
@@ -22,19 +23,26 @@ export class PaymentsService {
     });
   }
 
+  // Gestion du paiement réussi
   async handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-    const bookingId = paymentIntent.metadata.bookingId;
+    let bookingId = paymentIntent.metadata.bookingId;
     if (!bookingId) return;
+
+    // Convertir en string pour Prisma
+    bookingId = bookingId.toString();
 
     await this.prisma.booking.update({
       where: { id: bookingId },
       data: { status: 'CONFIRMED' },
     });
 
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
     if (booking) {
       await this.prisma.courseSession.update({
-        where: { id: booking.sessionId },
+        where: { id: booking.sessionId.toString() }, // conversion en string
         data: { status: 'RESERVED' },
       });
     }
