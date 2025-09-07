@@ -1,50 +1,53 @@
-# -------------------------------
-# Build Stage
-# -------------------------------
+# ----------------------------
+# Build stage
+# ----------------------------
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Installer pnpm et typescript globalement pour builder l'API
+# Installer pnpm et typescript globalement
 RUN npm install -g pnpm typescript
 
-# Copier les fichiers du workspace pour tout le monorepo
+# Copier le workspace pour installer les dépendances
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Installer toutes les dépendances (incluant devDependencies pour tsc)
+# Installer toutes les dépendances (dev incluses)
 RUN pnpm install --frozen-lockfile --prod=false
 
-# Copier tout le code source
+# Copier le code source du monorepo
 COPY apps ./apps
+COPY libs ./libs
 
-# Builder l'API (NestJS / Node)
+# ----------------------------
+# Builder l'API (NestJS)
+# ----------------------------
 WORKDIR /app/apps/api
 RUN pnpm build
 
+# ----------------------------
 # Builder le frontend (Next.js)
-WORKDIR /app/apps/web
-RUN pnpm build
+# ----------------------------
+WORKDIR /app
+RUN pnpm --filter web build
 
-# -------------------------------
-# Production Stage
-# -------------------------------
-FROM node:20-alpine
+# ----------------------------
+# Production stage
+# ----------------------------
+FROM node:20-alpine AS production
 WORKDIR /app
 
-# Copier uniquement ce qui est nécessaire pour la prod
-COPY --from=builder /app/node_modules ./node_modules
+# Installer pnpm pour démarrer l'app en production
+RUN npm install -g pnpm
 
-# Copier le build du frontend
-COPY --from=builder /app/apps/web/.next ./apps/web/.next
-COPY --from=builder /app/apps/web/public ./apps/web/public
+# Copier uniquement ce qui est nécessaire
+COPY --from=builder /app/apps/web/.next ./.next
+COPY --from=builder /app/apps/web/public ./public
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
 
-# Copier le build de l'API
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-
-# Définir l'environnement
+# Variables d'environnement
 ENV NODE_ENV=production
-EXPOSE 3000 4000
+EXPOSE 3000
 
-# Démarrer les deux apps en parallèle (API + Web)
-CMD ["sh", "-c", "cd apps/api && pnpm start & cd ../web && pnpm start"]
+# Commande par défaut pour Render
+CMD ["pnpm", "--filter", "web", "start"]
